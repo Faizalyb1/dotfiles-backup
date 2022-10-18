@@ -1,4 +1,3 @@
 # dotfiles
-
-fonts go to $HOME/.fonts
-bin go to $HOME/.local/bin
+fonts >> .fonts
+dot_local >> .local
