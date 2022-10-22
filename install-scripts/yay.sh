@@ -6,12 +6,9 @@ cd yay-bin/
 makepkg -si
 echo "YAY-Done"
 sleep 2s
-yay -S pacseek-bin
+yay -S pacseek-bin fm6000 picom-arian8j2-git ttf-google-sans ani-cli
 clear
-yay -S picom-arian8j2-git
-sleep 2s
-yay -S ttf-google-sans
-sleep 2s
+sleep 3s
 mkdir wallpapers
 cd wallpapers/
 git clone https://github.com/linuxdotexe/nordic-wallpapers.git
