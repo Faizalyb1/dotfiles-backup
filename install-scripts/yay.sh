@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 printf '\033c'
 git clone https://aur.archlinux.org/yay-bin.git
