@@ -14,4 +14,4 @@ cd wallpapers/
 git clone https://github.com/linuxdotexe/nordic-wallpapers.git
 cd ..
 echo "Wallpapers and fonts done"
-yay -S catppuccin-gtk-theme-mocha catppuccin-gtk-theme-macchiato catppuccin-gtk-theme-frappe catppuccin-gtk-theme-latte
+yay -S catppuccin-gtk-theme-mocha catppuccin-gtk-theme-macchiato catppuccin-gtk-theme-frappe papirus-folders-catppuccin-git
