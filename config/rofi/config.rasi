@@ -18,7 +18,7 @@ configuration{
 
 @theme "/home/docfaizal/.config/rofi/themes/catppuccin-mocha.rasi"
 //@theme "/home/docfaizal/.config/rofi/themes/catppuccin-frappe.rasi"
-//@theme "/home/docfaizal/.config/rofi/themes/catppuccin-mocha.rasi"
+//@theme "/home/docfaizal/.config/rofi/themes/catppuccin-latte.rasi"
 //@theme "/home/docfaizal/.config/rofi/themes/nord.rasi"
 //@theme "/home/docfaizal/.config/rofi/themes/gruvchad.rasi"
 //@theme "/home/docfaizal/.config/rofi/themes/onedark.rasi"
