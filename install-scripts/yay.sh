@@ -6,7 +6,7 @@ cd yay-bin/
 makepkg -si
 echo "YAY-Done"
 sleep 2s
-yay -S pacseek-bin fm6000 picom-arian8j2-git ttf-google-sans ani-cli
+yay -S pacseek-bin fm6000 picom-animations-git ttf-google-sans ani-cli
 clear
 sleep 3s
 mkdir wallpapers
