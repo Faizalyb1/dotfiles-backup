@@ -1,9 +1,4 @@
 #  ____ _____
-# |  _ \_   _|  Derek Taylor (DistroTube)
-# | | | || |    http://www.youtube.com/c/DistroTube
-# | |_| || |    http://www.gitlab.com/dwt1/
-# |____/ |_|
-#
 # My fish config. Not much to see here; just some pretty standard stuff.
 
 ### ADDING TO THE PATH
@@ -15,8 +10,8 @@ set -U fish_user_paths $HOME/.local/bin $HOME/Applications $fish_user_paths
 ### EXPORT ###
 set fish_greeting                                 # Supresses fish's intro message
 set TERM "xterm-256color"                         # Sets the terminal type
-set EDITOR "vim ''"                 # $EDITOR use Emacs in terminal
-set VISUAL "emacsclient -c -a emacs"              # $VISUAL use Emacs in GUI mode
+set EDITOR "nvim"
+### Sets Virual environment of Python
 export "MICRO_TRUECOLOR=1" 
 
 ### SET MANPAGER
@@ -24,7 +19,6 @@ export "MICRO_TRUECOLOR=1"
 
 ### "bat" as manpager
 set -x MANPAGER "sh -c 'col -bx | bat -l man -p'"
-
 ## "vim" as manpager
 # set -x MANPAGER '/bin/bash -c "vim -MRn -c \"set buftype=nofile showtabline=0 ft=man ts=8 nomod nolist norelativenumber nonu noma\" -c \"normal L\" -c \"nmap q :qa<CR>\"</dev/tty <(col -b)"'
 
@@ -40,7 +34,7 @@ end
 
 ### AUTOCOMPLETE AND HIGHLIGHT COLORS ###
 set fish_color_normal brcyan
-set fish_color_autosuggestion '#757575'
+set fish_color_autosuggestion '#00FF00'
 set fish_color_command brcyan
 set fish_color_error '#ff6c6b'
 set fish_color_param brcyan
@@ -210,23 +204,29 @@ end
 # \x1b[2J   <- clears tty
 # \x1b[1;1H <- goes to (1, 1) (start)
 
-# root privileges
+# Utils
 alias s="sudo"
-alias ani="ani-cli -f -q 720 -r 2"
+# alias ani="ani-cli -f -q 720"
 alias se="sudo nvim"
 alias e="nvim"
 alias query="pacman -Q | fzf"
-alias cache="sudo rm -rf /var/cache/pacman/pkg/* && rm -rf .cache/*"
+alias cache="sudo rm -rf /var/cache/pacman/pkg/* && rm -rf ~/.cache/*"
 alias yt="ytfzf -s --disable-submenus"
 alias grab="sudo pacman -S"
 alias rem="sudo pacman -Rnsc"
-alias u="sudo pacman -Syu"
+alias u="sudo pacman -Syu && yay -Sua"
 alias pdf="mupdf -A 4"
 alias hist="history | fzf"
 alias down="aria2c -x16 -d ~/aria2c"
+alias r3pro="aria2c -x16 -d ~/flashables/r3pro"
+alias ginkgo="aria2c -x16 -d ~/flashables/ginkgo"
+alias gapps="aria2c -x16 -d ~/flashables/Gapps"
 alias grubup="sudo grub-mkconfig -o /boot/grub/grub.cfg"
 alias fconf="nvim ~/.config/fish/config.fish"
-alias fm="fm6000 -o DF_OS -k 6.02 -p 530 -r -u 2d,13h25m"
+alias sf="sudo find / -iname"
+alias hf="find ~/ -iname"
+alias sd="scrot -d 10"
+alias fm="fm6000 -o DF_OS -k 5.15 -p 530 -r -u 1d,11h27m"
 
 # navigation
 alias ..='cd ..'
@@ -254,12 +254,12 @@ alias l.='exa -a | egrep "^\."'
 # pacman and yay
 alias pacsyu='sudo pacman -Syu'                  # update only standard pkgs
 alias pacsyyu='sudo pacman -Syyu'                # Refresh pkglist & update standard pkgs
-alias yaysua='yay -Sua'              # update only AUR pkgs (yay)
-alias yaysyu='yay -Syu'              # update standard pkgs and AUR pkgs (yay)
+alias yaysua='yay -Sua'                          # update only AUR pkgs (yay)
+alias yaysyu='yay -Syu'                          # update standard pkgs and AUR pkgs (yay)
 alias parsua='paru -Sua --noconfirm'             # update only AUR pkgs (paru)
 alias parsyu='paru -Syu --noconfirm'             # update standard pkgs and AUR pkgs (paru)
 alias unlock='sudo rm /var/lib/pacman/db.lck'    # remove pacman lock
-alias cleanup='sudo pacman -Rns (pacman -Qtdq)' # remove orphaned packages
+alias cleanup='sudo pacman -Rns (pacman -Qtdq)'  # remove orphaned packages
 
 # get fastest mirrors
 alias mirror="sudo reflector -f 30 -l 30 --number 10 --verbose --save /etc/pacman.d/mirrorlist"
@@ -271,17 +271,16 @@ alias mirrora="sudo reflector --latest 50 --number 20 --sort age --save /etc/pac
 alias grep='grep --color=auto'
 alias egrep='egrep --color=auto'
 alias fgrep='fgrep --color=auto'
+alias mv='mv -i'
 
 # confirm before overwriting something
 alias cp="cp -i"
-alias mv='mv -i'
 alias rm='rm -i'
 
 # adding flags
 alias df='df -h'                          # human-readable sizes
 alias free='free -m'                      # show sizes in MB
 alias lynx='lynx -cfg=~/.lynx/lynx.cfg -lss=~/.lynx/lynx.lss -vikeys'
-alias tofish="sudo chsh $UShttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadhttps://sourceforge.net/projects/kaosx/files/ISO/KaOS-2022.10-x86_64.iso/downloadER -s /bin/fish && echo 'Now log out.'"
 alias vifm='./.config/vifm/scripts/vifmrun'
 alias mocp='mocp -M "$XDG_CONFIG_HOME"/moc -O MOCDir="$XDG_CONFIG_HOME"/moc'
 
