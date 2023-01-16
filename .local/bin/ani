@@ -1,0 +1,323 @@
+#!/bin/sh
+
+version_number="4.0"
+
+# UI
+
+external_menu() {
+	rofi -sort -dmenu -i -width 1500 -p "$*"
+}
+
+launcher() {
+	[ "$use_external_menu" = "0" ] && fzf --prompt "$*"
+	[ "$use_external_menu" = "1" ] && external_menu "$*"
+}
+
+nth() {
+	stdin=$(cat -)
+	[ -z "$stdin" ] && return 1
+	line_count="$(printf "%s\n" "$stdin" | wc -l)"
+	[ "$line_count" -eq 1 ] && printf "%s" "$stdin" && return 0
+	line=$(printf "%s" "$stdin" | sed 's|.*\t||' | launcher "$*")
+	[ -n "$line" ] && printf "%s" "$stdin" | grep -w "${line}$" || exit 1
+}
+
+die() {
+	printf "%s\n" "$*" 1>&2
+	exit 1
+}
+
+help_info() {
+	printf "
+    Usage: 
+    %s [options] [query]
+    %s [query] [options]
+    %s [options] [query] [options]
+
+    Options:
+      -c, --continue
+        Continue watching from history
+      -d, --download
+        Download the video instead of playing it
+      -s, --syncplay
+        Use Syncplay to watch with friends
+      -q, --quality
+        Specify the video quality
+      -v, --vlc
+        Use VLC to play the video
+      -V, --version
+        Show the version of the script
+      -h, --help
+        Show this help message and exit
+      -e, --episode
+        Specify the number of episodes to watch
+      -U, --update
+        Update the script
+    Some example usages:
+      %s -q 720p banana fish
+      %s -d -e 2 cyberpunk edgerunners
+      %s --vlc cyberpunk edgerunners -q 1080p -e 4
+    \n" "${0##*/}" "${0##*/}" "${0##*/}" "${0##*/}" "${0##*/}" "${0##*/}"
+}
+
+version_info() {
+	printf "%s\n" "$version_number"
+	exit 0
+}
+
+update_script() {
+	update="$(wget -q -O - -U "$agent" "https://raw.githubusercontent.com/pystardust/ani-cli/master/ani-cli")" || die "Connection error"
+	update="$(printf '%s\n' "$update" | diff -u "$0" -)"
+	if [ -z "$update" ]; then
+		printf "Script is up to date :)\n"
+	else
+		if printf '%s\n' "$update" | patch "$0" -; then
+			printf "Script has been updated\n"
+		else
+			die "Can't update for some reason!"
+		fi
+	fi
+	exit 0
+}
+
+# checks if dependencies are present
+dep_ch() {
+	for dep; do
+		command -v "$dep" >/dev/null || die "Program \"$dep\" not found. Please install it."
+	done
+}
+
+# SCRAPING
+
+# extract the video links from reponse of embed urls, extract mp4 links form m3u8 lists
+get_links() {
+	episode_link="$(wget -q -O - "https://blog.allanime.pro/apivtwo/clock.json?id=$*" -U "$agent" | sed 's|},{|\n|g' | sed -nE 's|.*link":"([^"]*)".*"resolutionStr":"([^"]*)".*|\2 >\1|p')"
+	case "$episode_link" in
+	*v.vrv.co*)
+		extract_link=$(printf "%s" "$episode_link" | grep "$media_locale" | cut -d'>' -f2)
+		wget -q -O - "$extract_link" -U "$agent" | sed 's|^#.*x||g; s|,.*|p|g; /^#/d; $!N; s|\n| >|; s|\/index-v1-a1\.m3u8||g' | sort -nr
+		;;
+	*repackager.wixmp.com*)
+		extract_link=$(printf "%s" "$episode_link" | cut -d'>' -f2 | sed 's|repackager.wixmp.com/||g;s|\.urlset.*||g')
+		for j in $(printf "%s" "$episode_link" | sed -nE 's|.*/,([^/]*),/mp4.*|\1|p' | sed 's|,|\n|g'); do
+			printf "%s >%s\n" "$j" "$extract_link" | sed "s|,[^/]*|${j}|g"
+		done | sort -nr
+		;;
+	*//cache.* | *gofcdn.com*)
+		if printf "%s" "$episode_link" | head -1 | grep -q "original.m3u"; then
+			printf "%s" "$episode_link"
+		else
+			extract_link=$(printf "%s" "$episode_link" | head -1 | cut -d'>' -f2)
+			relative_link=$(printf "%s" "$extract_link" | sed 's|[^/]*$||')
+			wget -q -O - "$extract_link" -U "$agent" | sed 's|^#.*x||g; s|,.*|p|g; /^#/d; $!N; s|\n| >|' | sed "s|>|>${relative_link}|g" | sort -nr
+		fi
+		;;
+	*) [ -n "$episode_link" ] && printf "%s\n" "$episode_link" ;;
+	esac
+	printf "Fetching %s Links\n" "$provider_name" 1>&2
+}
+
+# innitialises provider_name and provider_id. First argument is the provider name, 2nd is the regex that matches that provider's link
+provider_init() {
+	provider_name=$1
+	provider_id=$(printf "%s" "$resp" | sed -n "$2" | head -1 | cut -d':' -f2)
+}
+
+# generates links based on given provider
+generate_link() {
+	case $1 in
+	1) provider_init 'vrv|wixmp' '/Default :/p' ;; # vrv,wixmp(default)(m3u8)(multi) -> (mp4)(multi)
+	2) provider_init 'pstatic' '/Default B :/p' ;; # pstatic(default backup)(mp4)(multi)
+	3) provider_init 'sharepoint' '/S-mp4 :/p' ;;  # sharepoint(mp4)(single)
+	4) provider_init 'usercloud' '/Uv-mp4 :/p' ;;  # usercloud(mp4)(single)
+	*) provider_init 'gogoanime' '/Luf-mp4 :/p' ;; # gogoanime(m3u8)(multi)
+	esac
+	# logic yet to implement
+	[ -n "$provider_id" ] && get_links "$provider_id"
+}
+
+select_quality() {
+	case "$1" in
+	best) result=$(printf "%s" "$links" | head -n1) ;;
+	worst) result=$(printf "%s" "$links" | grep -E '^[0-9]{3,4}' | tail -n1) ;;
+	*) result=$(printf "%s" "$links" | grep -m 1 "$1") ;;
+	esac
+	[ -z "$result" ] && printf "Specified quality not found, defaulting to best" 1>&2 && result=$(printf "%s" "$links" | head -n1)
+	printf "%s" "$result" | cut -d'>' -f2
+}
+
+# gets embed urls, collects direct links into provider files, selects one with desired quality into $episode
+get_episode_url() {
+	# get the embed urls of the selected episode
+	resp=$(wget -q -O - "https://allanime.site/watch/$id/$allanime_title/episode-$ep_no-$mode" -U "$agent" | tr '{}' '\n' | sed 's|\\u002F|\/|g;s|\\||g' | sed -nE 's|.*sourceUrl":".*clock\?id=([^"]*)".*sourceName":"([^"]*)".*|\2 :\1|p')
+	# generate links into sequential files
+	provider=1
+	i=0
+	while [ "$i" -lt 5 ]; do
+		generate_link "$provider" >"$cache_dir"/"$i" &
+		provider=$((provider % 5 + 1))
+		: $((i += 1))
+	done
+	wait
+	# select the link with matching quality
+	links=$(cat "$cache_dir"/* | sed 's|^Mp4-||g' | sort -g -r -s)
+	episode=$(select_quality "$quality")
+	[ -z "$episode" ] && die "Episode not released!"
+}
+
+# search the query and give results
+search_anime() {
+	wget -q -O - "https://allanime.site/allanimeapi?variables=%7B%22search%22%3A%7B%22allowAdult%22%3Atrue%2C%22allowUnknown%22%3Atrue%2C%22query%22%3A%22$*%22%7D%2C%22limit%22%3A40%2C%22page%22%3A1%2C%22translationType%22%3A%22$mode%22%2C%22countryOrigin%22%3A%22ALL%22%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%229c7a8bc1e095a34f2972699e8105f7aaf9082c6e1ccd56eab99c2f1a971152c6%22%7D%7D" -U "$agent" | sed 's|Show|\n|g' | sed -nE "s|.*_id\":\"([^\"]*)\",\"name\":\"(.*)\",\"english.*\"$mode\":([1-9][^,]*).*|\1\t\2 (\3 episode)|p" | sed 's/\\//g;s/"//g'
+}
+
+# get the episodes list of the selected anime
+episodes_list() {
+	wget -q -O - "https://allanime.site/anime/$*" -U "$agent" | sed 's|\\||g' | sed -nE "s|.*$mode\":\[([0-9.\",]*)\].*|\1|p" | sed 's|,|\n|g; s|"||g'
+}
+
+# PLAYING
+
+download() {
+	case $1 in
+	*m3u8*) ffmpeg -loglevel error -stats -i "$1" -c copy "$download_dir/$2.mp4" ;;
+	*) aria2c --check-certificate=false --summary-interval=0 -x 16 -s 16 "$1" --dir="$download_dir" -o "$2.mp4" --download-result=hide ;;
+	esac
+}
+
+play_episode() {
+	get_episode_url
+	case "$player_function" in
+	debug) printf "All links:\n%s\nSelected link:\n%s\n" "$links" "$episode" ;;
+	mpv*) nohup "$player_function" --force-media-title="${allanime_title}episode-${ep_no}-${mode}" "$episode" >/dev/null 2>&1 & ;;
+	android_mpv) nohup am start --user 0 -a android.intent.action.VIEW -d "$episode" -n is.xyz.mpv/.MPVActivity >/dev/null 2>&1 & ;;
+	android_vlc) nohup am start --user 0 -a android.intent.action.VIEW -d "$episode" -n org.videolan.vlc/org.videolan.vlc.gui.video.VideoPlayerActivity -e "title" "${allanime_title}episode-${ep_no}-${mode}" >/dev/null 2>&1 & ;;
+	iina) nohup "$player_function" --no-stdin --keep-running --mpv-force-media-title="${allanime_title}episode-${ep_no}-${mode}" "$episode" >/dev/null 2>&1 & ;;
+	flatpak_mpv) flatpak run io.mpv.Mpv --force-media-title="${allanime_title}episode-${ep_no}-${mode}" "$episode" >/dev/null 2>&1 & ;;
+	vlc*) nohup "$player_function" --video-title="${allanime_title}episode-${ep_no}-${mode}" "$episode" >/dev/null 2>&1 & ;;
+	*yncpla*) nohup "$player_function" "$episode" -- --force-media-title="${allanime_title}episode-${ep_no}-${mode}" >/dev/null 2>&1 & ;;
+	download) "$player_function" "$episode" "${allanime_title}episode-${ep_no}-${mode}" ;;
+	*) nohup "$player_function" >/dev/null 2>&1 & ;;
+	esac
+	[ "$use_external_menu" = "1" ] && wait
+}
+
+# MAIN
+
+# setup
+agent="Mozilla/5.0 (X11; Linux x86_64; rv:99.0) Gecko/20100101 Firefox/100.0"
+mode="${ANI_CLI_MODE:-sub}"
+media_locale="${ANI_CLI_MEDIA_LOCALE:-en-US}"
+download_dir="${ANI_CLI_DOWNLOAD_DIR:-.}"
+quality="${ANI_CLI_QUALITY:-best}"
+case "$(uname -a)" in
+*Darwin*) player_function="${ANI_CLI_PLAYER:-iina}" ;;           # mac OS
+*ndroid*) player_function="${ANI_CLI_PLAYER:-android_mpv}" ;;    # Android OS (termux)
+*steamdeck*) player_function="${ANI_CLI_PLAYER:-flatpak_mpv}" ;; # steamdeck OS
+*MINGW*) player_function="${ANI_CLI_PLAYER:-mpv.exe}" ;;         # Windows OS
+*) player_function="${ANI_CLI_PLAYER:-mpv}" ;;                   # Linux OS
+esac
+
+use_external_menu="${ANI_CLI_EXTERNAL_MENU:-0}"
+cache_dir="${ANI_CLI_CACHE_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/ani-cli}"
+[ ! -d "$cache_dir" ] && mkdir -p "$cache_dir"
+hist_dir="${ANI_CLI_HIST_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/ani-cli}"
+[ ! -d "$hist_dir" ] && mkdir -p "$hist_dir"
+search="${ANI_CLI_DEFAULT_SOURCE:-scrape}"
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	-v | --vlc)
+		case "$(uname -a)" in
+		*ndroid*) player_function="android_vlc" ;;
+		MINGW*) player_function="vlc.exe" ;;
+		*) player_function="vlc" ;;
+		esac
+		shift
+		;;
+	-s | --syncplay)
+		case "$(uname -s)" in
+		Darwin*) player_function="/Applications/Syncplay.app/Contents/MacOS/syncplay" ;;
+		MINGW* | *Msys) player_function="/c/Program Files (x86)/Syncplay/Syncplay.exe" ;;
+		*) player_function="syncplay" ;;
+		esac
+		shift
+		;;
+	-q | --quality) quality="$2" && shift 2 ;;
+	-c | --continue) search=history && shift ;;
+	-d | --download) player_function=download && shift ;;
+	-V | --version) version_info ;;
+	-h | --help) help_info && exit 0 ;;
+	-e | --episode) ep_no="$2" && shift 2 ;;
+	-U | --update) update_script ;;
+	*) query="$(printf "%s" "$query $1" | sed "s/^ //;s/ /%20/g")" && shift ;;
+	esac
+done
+printf "\33[2K\r\033[1;34mChecking dependencies...\033[0m\n"
+dep_ch "wget" "sed" "grep" "fzf" || true
+case "$player_function" in
+debug) ;;
+download) dep_ch "ffmpeg" "aria2c" ;;
+flatpak*)
+	dep_ch "flatpak"
+	flatpak info io.mpv.Mpv >/dev/null 2>&1 || die "Program \"mpv (flatpak)\" not found. Please install it."
+	;;
+android*) printf "Dependency checking of players on Android is disabled\n" ;;
+*) dep_ch "$player_function" ;;
+esac
+
+# searching
+case "$search" in
+history) die "Not implemented yet!" ;;
+*)
+	while [ -z "$query" ]; do
+		if [ "$use_external_menu" = "0" ]; then 
+			printf "Search anime: " && read -r query
+		else
+			query=$(printf "" | external_menu "Search anime: ")
+		fi
+	done
+	query=$(printf "%s" "$query" | sed "s| |%20|g")
+	anime_list=$(search_anime "$query")
+	[ -z "$anime_list" ] && die "No results found!"
+	result=$(printf "%s" "$anime_list" | nth "Select anime: ") || exit 1
+	;;
+esac
+# moves the cursor up one line and clears that line
+tput cuu1 && tput el
+title=$(printf "%s" "$result" | cut -f2)
+allanime_title="$(printf "%s" "$title" | cut -d'(' -f1 | tr -d '[:punct:]' | tr 'A-Z ' 'a-z-')"
+id=$(printf "%s" "$result" | cut -f1)
+ep_list=$(episodes_list "$id")
+[ -z "$ep_no" ] && ep_no=$(printf "%s" "$ep_list" | nth "Select episode: ")
+[ -z "$ep_no" ] && exit 1
+
+# playback & loop
+play_episode
+while cmd=$(printf "quit\nselect\nprevious\nreplay\nnext" | nth "Playing episode $ep_no of $title... "); do
+	case "$cmd" in
+	previous) ep_no=$(printf "%s" "$ep_list" | sed -n "/^${ep_no}$/{n;p;}") 2>/dev/null ;;
+	replay) ;;
+	next) ep_no=$(printf "%s" "$ep_list" | sed -n "/^${ep_no}$/{g;1!p;};h") 2>/dev/null ;;
+	select) ep_no=$(printf "%s" "$ep_list" | nth "Select episode: ") ;;
+	*) exit 0 ;;
+	esac
+	[ -z "$ep_no" ] && die "Out of range"
+	play_episode
+done
+
+# ani-cli
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+# Project repository: https://github.com/pystardust/ani-cli
